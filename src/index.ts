@@ -15,6 +15,7 @@ function startWorker(desiredPrefix: string) {
             console.log(`Private Key: ${message.privateKey}`);
 
             workers.forEach((w: any) => w.postMessage({ command: 'stop' })); // Stop all workers
+            process.exit();
         } else if (message.status === 'progress') {
             console.log(`${message.attempts} attempts made so far by a worker...`);
         }
@@ -35,5 +36,5 @@ async function findCreatorWithVanityContractAddress(desiredPrefix: string) {
     }
 }
 
-const desiredPrefix = '0x000'; // Example prefix
+const desiredPrefix = '0x999'; // Example prefix
 findCreatorWithVanityContractAddress(desiredPrefix);
