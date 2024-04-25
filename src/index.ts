@@ -1,36 +1,39 @@
-import { ethers } from 'ethers';
+import { Worker } from 'worker_threads';
+const numWorkers = 4; // Number of parallel workers
 
-// This function computes the contract address
-function computeContractAddress(creatorAddress: string, nonce: number): string {
-    return ethers.utils.getContractAddress({ from: creatorAddress, nonce });
+let workers: any = [];
+
+function startWorker(desiredPrefix: string) {
+    const worker = new Worker('./src/worker.js');
+    worker.postMessage({ command: 'find', desiredPrefix: desiredPrefix });
+
+    worker.on('message', (message) => {
+        if (message.status === 'found') {
+            console.log(`Found a vanity contract address after ${message.attempts} attempts:`);
+            console.log(`Creator Address: ${message.creatorAddress}`);
+            console.log(`Vanity Contract Address: ${message.contractAddress}`);
+            console.log(`Private Key: ${message.privateKey}`);
+
+            workers.forEach((w: any) => w.postMessage({ command: 'stop' })); // Stop all workers
+        } else if (message.status === 'progress') {
+            console.log(`${message.attempts} attempts made so far by a worker...`);
+        }
+    });
+
+    worker.on('error', error => console.error(error));
+    worker.on('exit', (code) => {
+        if (code !== 0)
+            console.log(`Worker stopped with exit code ${code}`);
+    });
+
+    workers.push(worker);
 }
 
-// Brute-force search for a creator address whose first contract matches the desired prefix
 async function findCreatorWithVanityContractAddress(desiredPrefix: string) {
-    let found = false;
-    let attempts = 0;
-
-    while (!found) {
-        const wallet = ethers.Wallet.createRandom();
-
-        // Nonce of 0 because we are considering the first contract deployment
-        const potentialContractAddress = computeContractAddress(wallet.address, 0);
-
-        if (potentialContractAddress.startsWith(desiredPrefix)) {
-            found = true;
-            console.log(`Found a vanity contract address after ${attempts} attempts:`);
-            console.log(`Creator Address: ${wallet.address}`);
-            console.log(`Vanity Contract Address: ${potentialContractAddress}`);
-            console.log(`Private Key: ${wallet.privateKey}`);
-        } else {
-            attempts++;
-            if (attempts % 100 === 0) {
-                console.log(`${attempts} attempts made so far...`);
-            }
-        }
+    for (let i = 0; i < numWorkers; i++) {
+        startWorker(desiredPrefix);
     }
 }
 
-// Configuration: Set your desired prefix
-const desiredPrefix = '0x111'; // Example prefix
+const desiredPrefix = '0x000'; // Example prefix
 findCreatorWithVanityContractAddress(desiredPrefix);
